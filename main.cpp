@@ -6,6 +6,7 @@
 
 using namespace std;
 
+// Функция проверки файлов на открытие
 bool FilesAreOpened(const string origFile, const string modFile) {
     ifstream ver1(origFile);
     ifstream ver2(modFile);
@@ -54,6 +55,7 @@ void CreatePatchFile(const string origFile, const string modFile, const string p
     cout << "Патч-файл успешно создан" << endl;
 }
 
+// Функция проверки патч-файла и создания модифицированного файла
 void ConfirmPatch(const string patchFile, const string origFile, const string modFile) {
     ifstream patch(patchFile);
     ifstream ver1(origFile);
@@ -109,6 +111,7 @@ int main() {
 
     string patchFile = files_dir + "patch.txt";
 
+    // Копирование файла версии 1 в другую директорию (поскольку они одинаковые)
     system("copy test_files\\Dir1\\ver1.txt test_files\\Dir2\\ver1.txt");
 
     if (FilesAreOpened(origFile1, modFile1)) {
