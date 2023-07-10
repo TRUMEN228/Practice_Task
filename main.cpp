@@ -37,12 +37,12 @@ void CreatePatchFile(const string origFile, const string modFile, const string p
     while (getline(ver2, line)) {
         if (line_number < orig_lines.size()) {
             if (line != orig_lines[line_number]) {
-                patch << "Line " << line_number + 1 << ": " << line << endl;
+                patch <<line_number + 1 << ": " << line << endl;
             }
         }
 
         else {
-            patch << "Line " << line_number + 1 << ": " << line << endl;
+            patch << line_number + 1 << ": " << line << endl;
         }
 
         line_number++;
@@ -70,11 +70,10 @@ void ConfirmPatch(const string patchFile, const string origFile, const string mo
 
     while (getline(patch, line)) {
         istringstream str_stream(line);
-        string prefix;
         int line_number = 0;
         string mod_line;
 
-        if (!(str_stream >> prefix >> line_number) || !getline(str_stream.ignore(2, ' '), mod_line)) {
+        if (!(str_stream >> line_number) || !getline(str_stream.ignore(2, ' '), mod_line)) {
             cout << "Неверный формат патч-файла: " << line << endl;
             continue;
         }
