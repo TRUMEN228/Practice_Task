@@ -1,126 +1,141 @@
 #include <iostream>
-#include <string>
 #include <fstream>
 #include <vector>
-#include <sstream>
+#include <random>
 
 using namespace std;
 
-// Функция проверки файлов на открытие
-bool FilesAreOpened(const string origFile, const string modFile) {
-    ifstream ver1(origFile);
-    ifstream ver2(modFile);
+// Функция для создания бинарного патча на основе разницы между версиями ver1 и ver2
+vector<char> CreateBinaryPatch(const string& ver1Path, const string& ver2Path)
+{
+    ifstream ver1File(ver1Path, ios::binary);
+    ifstream ver2File(ver2Path, ios::binary);
 
-    if (ver1.is_open() && ver2.is_open()) {
-        return true;
+    if (!ver1File || !ver2File)
+    {
+        cerr << "Не удалось открыть файлы" << endl;
+        return {};
     }
 
-    else {
-        return false;
+    // Считываем данные из файлов ver1 и ver2
+    vector<char> ver1Data(istreambuf_iterator<char>(ver1File), {});
+    vector<char> ver2Data(istreambuf_iterator<char>(ver2File), {});
+
+    // Создаем патч на основе разницы между ver2 и ver1
+    vector<char> patchData;
+    for (size_t i = 0; i < ver2Data.size(); ++i)
+    {
+        if (i < ver1Data.size())
+        {
+            char diff = ver2Data[i] - ver1Data[i];
+            patchData.push_back(diff);
+        }
+        else
+        {
+            patchData.push_back(ver2Data[i]);
+        }
     }
+
+    return patchData;
 }
 
-// Функция создания патч-файла
-void CreatePatchFile(const string origFile, const string modFile, const string patchFile) {
-    ifstream ver1(origFile);
-    ifstream ver2(modFile);
-    ofstream patch(patchFile);
+// Функция для применения бинарного патча к версии ver1, чтобы получить версию ver2
+vector<char> ApplyBinaryPatch(const string& ver1Path, const vector<char>& patchData)
+{
+    ifstream ver1File(ver1Path, ios::binary);
 
-    vector<string> orig_lines;
-    string line;
-
-    while (getline(ver1, line)) {
-        orig_lines.push_back(line);
+    if (!ver1File)
+    {
+        cerr << "Не удалось открыть файлы" << endl;
+        return {};
     }
 
-    int line_number = 0;
-    while (getline(ver2, line)) {
-        if (line_number < orig_lines.size()) {
-            if (line != orig_lines[line_number]) {
-                patch <<line_number + 1 << ": " << line << endl;
-            }
-        }
+    // Считываем данные из файла ver1
+    vector<char> ver1Data(istreambuf_iterator<char>(ver1File), {});
 
-        else {
-            patch << line_number + 1 << ": " << line << endl;
+    // Применяем патч к версии ver1, чтобы получить версию ver2
+    vector<char> ver2Data;
+    for (size_t i = 0; i < ver1Data.size(); ++i)
+    {
+        if (i < patchData.size())
+        {
+            char updatedByte = ver1Data[i] + patchData[i];
+            ver2Data.push_back(updatedByte);
         }
-
-        line_number++;
+        else
+        {
+            ver2Data.push_back(ver1Data[i]);
+        }
     }
 
-    ver1.close();
-    ver2.close();
-    patch.close();
-
-    cout << "Патч-файл успешно создан" << endl;
+    return ver2Data;
 }
 
-// Функция проверки патч-файла и создания модифицированного файла
-void ConfirmPatch(const string patchFile, const string origFile, const string modFile) {
-    ifstream patch(patchFile);
-    ifstream ver1(origFile);
-    ofstream ver2(modFile);
+// Функция для создания бинарного файла с случайными данными
+void CreateBinaryFile(const string& filePath, size_t fileSize)
+{
+    ofstream file(filePath, ios::binary);
 
-    vector<string> orig_lines;
-    string line;
-
-    while (getline(ver1, line)) {
-        orig_lines.push_back(line);
+    if (!file)
+    {
+        cerr << "Failed to create binary file: " << filePath << endl;
+        return;
     }
 
-    while (getline(patch, line)) {
-        istringstream str_stream(line);
-        int line_number = 0;
-        string mod_line;
+    random_device rd;
+    mt19937 generator(rd());
+    uniform_int_distribution<int> distribution(0, 255);
 
-        if (!(str_stream >> line_number) || !getline(str_stream.ignore(2, ' '), mod_line)) {
-            cout << "Неверный формат патч-файла: " << line << endl;
-            continue;
-        }
-
-        if (line_number > orig_lines.size()) {
-            orig_lines.push_back(mod_line);
-            continue;
-        }
-
-        else {
-            orig_lines[line_number - 1] = mod_line;
-        }
+    vector<char> data(fileSize);
+    for (size_t i = 0; i < fileSize; ++i)
+    {
+        data[i] = static_cast<char>(distribution(generator));
     }
 
-    for (const auto& mod_line : orig_lines) {
-        ver2 << mod_line << endl;
-    }
+    file.write(data.data(), fileSize);
 
-    patch.close();
-    ver1.close();
-    ver2.close();
-
-    cout << "Модифицированный файл успешно создан" << endl;
+    cout << "Binary file created successfully: " << filePath << endl;
 }
 
-int main() {
-    string files_dir = "test_files/";
+int main()
+{
+    string ver1Path = "test_files/Dir1/ver1.bin";
+    string ver2Path = "test_files/Dir1/ver2.bin";
+    string patchPath = "test_files/patch.patch";
 
-    string origFile1 = files_dir + "Dir1/ver1.txt";
-    string modFile1 = files_dir + "Dir1/ver2.txt";
+    CreateBinaryFile(ver1Path, 256);
+    CreateBinaryFile(ver2Path, 256);
 
-    string origFile2 = files_dir + "Dir2/ver1.txt";
-    string modFile2 = files_dir + "Dir2/ver2.txt";
+    // Создание патча
+    vector<char> patchData = CreateBinaryPatch(ver1Path, ver2Path);
 
-    string patchFile = files_dir + "patch.txt";
-
-    // Копирование файла версии 1 в другую директорию (поскольку они одинаковые)
-    system("copy test_files\\Dir1\\ver1.txt test_files\\Dir2\\ver1.txt");
-
-    if (FilesAreOpened(origFile1, modFile1)) {
-        CreatePatchFile(origFile1, modFile1, patchFile);
-        ConfirmPatch(patchFile, origFile2, modFile2);
+    // Сохранение патча в файл
+    ofstream patchFile(patchPath, ios::binary);
+    if (!patchFile)
+    {
+        cerr << "Failed to create patch file." << endl;
+        return 1;
     }
 
-    else {
-        cout << "Не удалось открыть файлы" << endl;
+    copy(patchData.begin(), patchData.end(), ostreambuf_iterator<char>(patchFile));
+
+    cout << "Patch created successfully." << endl;
+
+    // Применение патча к версии ver1, чтобы получить версию ver2
+    string patchedFilePath = "test_files/Dir2/patched.bin";
+    vector<char> ver2Data = ApplyBinaryPatch(ver1Path, patchData);
+
+    // Сохранение версии ver2 в файл
+    ofstream ver2File(patchedFilePath, ios::binary);
+    if (!ver2File)
+    {
+        cerr << "Failed to create patched file." << endl;
+        return 1;
     }
+
+    ver2File.write(ver2Data.data(), ver2Data.size());
+
+    cout << "Patch applied successfully." << endl;
 
     return 0;
 }
