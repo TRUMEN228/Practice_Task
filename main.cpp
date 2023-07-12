@@ -78,7 +78,7 @@ void CreateBinaryFile(const string& filePath, size_t fileSize)
 
     if (!file)
     {
-        cerr << "Failed to create binary file: " << filePath << endl;
+        cerr << "Не удалось создать бинарный файл: " << filePath << endl;
         return;
     }
 
@@ -94,7 +94,67 @@ void CreateBinaryFile(const string& filePath, size_t fileSize)
 
     file.write(data.data(), fileSize);
 
-    cout << "Binary file created successfully: " << filePath << endl;
+    cout << "Бинарный файл создан успешно: " << filePath << endl;
+}
+
+//  Функция для обновления размера пропатченного файла на основе размера модифицированного файла
+void UpdatePatchedFileSize(const string& patchedFilePath, size_t newSize, const string& originalFilePath)
+{
+    fstream patchedFile(patchedFilePath, ios::in | ios::out | ios::binary);
+    ifstream originalFile(originalFilePath, ios::binary);
+
+    if (!patchedFile || !originalFile)
+    {
+        cerr << "Не удалось открыть файлы" << endl;
+        return;
+    }
+
+    patchedFile.seekp(0, ios::end);
+    size_t currentSize = patchedFile.tellp();
+
+    if (currentSize < newSize)
+    {
+        // Считываем оригинальные данные, которые не попали в патч
+        vector<char> remainingData(newSize - currentSize);
+        originalFile.seekg(currentSize);
+        originalFile.read(remainingData.data(), newSize - currentSize);
+
+        // Увеличиваем размер файла путем добавления оставшихся данных в конец
+        patchedFile.write(remainingData.data(), remainingData.size());
+    }
+    else if (currentSize > newSize)
+    {
+        // Обрезаем файл до нужного размера
+        patchedFile.close();
+
+        ofstream truncateFile(patchedFilePath, ios::binary | ios::trunc);
+        if (!truncateFile)
+        {
+            cerr << "Не удалось обрезать файл" << endl;
+            return;
+        }
+
+        truncateFile.write("", newSize);
+        truncateFile.close();
+    }
+
+    cout << "Размер файла успешно обновлен" << endl;
+}
+
+// Функция для получения размера файла
+size_t GetFileSize(const string& filePath)
+{
+    ifstream file(filePath, ios::binary | ios::ate);
+    if (!file)
+    {
+        cerr << "Не удалось открыть файл" << endl;
+        return 0;
+    }
+
+    size_t fileSize = static_cast<size_t>(file.tellg());
+    file.close();
+
+    return fileSize;
 }
 
 int main()
@@ -104,7 +164,7 @@ int main()
     string patchPath = "test_files/patch.patch";
 
     CreateBinaryFile(ver1Path, 256);
-    CreateBinaryFile(ver2Path, 256);
+    CreateBinaryFile(ver2Path, 512);
 
     // Создание патча
     vector<char> patchData = CreateBinaryPatch(ver1Path, ver2Path);
@@ -113,29 +173,34 @@ int main()
     ofstream patchFile(patchPath, ios::binary);
     if (!patchFile)
     {
-        cerr << "Failed to create patch file." << endl;
+        cerr << "Не удалось создать патч-файл" << endl;
         return 1;
     }
 
     copy(patchData.begin(), patchData.end(), ostreambuf_iterator<char>(patchFile));
 
-    cout << "Patch created successfully." << endl;
+    cout << "Патч создан успешно" << endl;
 
     // Применение патча к версии ver1, чтобы получить версию ver2
     string patchedFilePath = "test_files/Dir2/patched.bin";
-    vector<char> ver2Data = ApplyBinaryPatch(ver1Path, patchData);
+
+    vector<char> patchedData = ApplyBinaryPatch(ver1Path, patchData);
 
     // Сохранение версии ver2 в файл
-    ofstream ver2File(patchedFilePath, ios::binary);
-    if (!ver2File)
+    ofstream patchedFile(patchedFilePath, ios::binary);
+    if (!patchedFile)
     {
-        cerr << "Failed to create patched file." << endl;
+        cerr << "Не удалось создать пропатченый файл" << endl;
         return 1;
     }
+    
+    size_t newSize = GetFileSize(ver2Path);
 
-    ver2File.write(ver2Data.data(), ver2Data.size());
+    UpdatePatchedFileSize(patchedFilePath, newSize, ver2Path);
 
-    cout << "Patch applied successfully." << endl;
+    patchedFile.write(patchedData.data(), patchedData.size());
+
+    cout << "Патч успешно применен" << endl;
 
     return 0;
 }
