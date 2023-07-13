@@ -159,12 +159,12 @@ size_t GetFileSize(const string& filePath)
 
 int main()
 {
-    string ver1Path = "test_files/Dir1/ver1.bin";
-    string ver2Path = "test_files/Dir1/ver2.bin";
+    string ver1Path = "test_files/Dir1/ver1.txt";
+    string ver2Path = "test_files/Dir1/ver2.txt";
     string patchPath = "test_files/patch.patch";
 
-    CreateBinaryFile(ver1Path, 256);
-    CreateBinaryFile(ver2Path, 512);
+    // CreateBinaryFile(ver1Path, 256);
+    // CreateBinaryFile(ver2Path, 512);
 
     // Создание патча
     vector<char> patchData = CreateBinaryPatch(ver1Path, ver2Path);
