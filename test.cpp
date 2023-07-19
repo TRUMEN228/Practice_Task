@@ -5,11 +5,11 @@
 
 using namespace std;
 
-const int CHECK_SIZE = 100;
+const int BLOCK_SIZE = 100;
 
 struct PatchInfo {
-    uint8_t key = 0;
-    int mem = 0;
+    uint8_t key;
+    int mem;
     vector<char> data;
 };
 
@@ -18,22 +18,14 @@ void CreatePatch(const string& ver1Path, const string& ver2Path, const string& p
     ifstream ver2(ver2Path, ios::binary | ios::ate);
     ofstream patch(patchPath, ios::binary);
 
-    vector<char> ver1Data(CHECK_SIZE);
-    vector<char> ver2Data(CHECK_SIZE);
-
-    // for (int i = 0; !ver1.eof(); ++i) {
-    //     ver1 >> ver1Data[i];
-    // }
-
-    // for (int i = 0; !ver2.eof(); ++i) {
-    //     ver2 >> ver2Data[i];
-    // }
+    vector<char> ver1Data(BLOCK_SIZE);
+    vector<char> ver2Data(BLOCK_SIZE);
     
     vector<PatchInfo> patchData;
 
     while (ver2) {
-        ver1.read(ver1Data.data(), CHECK_SIZE);
-        ver2.read(ver2Data.data(), CHECK_SIZE);
+        ver1.read(ver1Data.data(), BLOCK_SIZE);
+        ver2.read(ver2Data.data(), BLOCK_SIZE);
 
         if (ver1Data == ver2Data) {
 
@@ -44,7 +36,7 @@ void CreatePatch(const string& ver1Path, const string& ver2Path, const string& p
 
             PatchInfo match;
             match.key = 1;
-            match.mem += CHECK_SIZE;
+            match.mem += BLOCK_SIZE;
             patchData.push_back(match);
         }
 
@@ -58,49 +50,9 @@ void CreatePatch(const string& ver1Path, const string& ver2Path, const string& p
         }
     }
 
-    // if (!patchData.empty()) {
-    //     patch.write(reinterpret_cast<char*>(&key), sizeof(uint8_t));
-    //     patch.write(reinterpret_cast<char*>(&mem), sizeof(int));
-    //     patch.write(patchData.data(), mem);
-    // }
-
     if (!patchData.empty()) {
         patch.write(reinterpret_cast<char*>(patchData.data()), patchData.size() + sizeof(PatchInfo));
     }
-    
-//     for (int i = 0; i < ver2Data.size(); i += CHECK_SIZE) {
-//         int remainingSize = ver2Data.size() - i;
-//         int compareSize = min(CHECK_SIZE, remainingSize);
-
-//         if (compareSize < CHECK_SIZE) {
-//             mem = 0;
-//             patchData.emplace_back(PatchElement{0, mem, {}});
-//             patchData.back().data.insert(patchData.back().data.end(), ver2Data.begin() + i, ver2Data.end());
-//             break;
-//         }
-
-//         if (ver1Data.data() + mem != ver2Data.data() + i) {
-//             mem = 1;
-//             while (ver1Data.data() + mem != ver2Data.data() + i) {
-//                 if (mem + compareSize >= ver1Data.size()) {
-//                     mem = 0;
-//                     patchData.emplace_back(PatchElement{0, mem, {}});
-//                     patchData.back().data.insert(patchData.back().data.end(), ver2Data.begin() + i, ver2Data.begin() + i + compareSize);
-//                     break;
-//                 }
-//                 mem++;
-//             }
-//             if (mem != 0) {
-//                 patchData.emplace_back(PatchElement{1, mem, {}});
-//             }
-//         }
-
-//         if (mem != 0) {
-//             patchData.back().data.insert(patchData.back().data.end(), ver2Data.begin() + i, ver2Data.begin() + i + compareSize);
-//         }
-
-//         mem += compareSize;
-//     }
 
     cout << "Патч успешно создан" << endl;
 
@@ -113,22 +65,6 @@ void ApplyPatch(const string& ver1Path, const string& patchPath, const string& p
     ofstream patched(patchedPath, ios::binary);
 
     vector<char> ver1Data((istreambuf_iterator<char>(ver1)), (istreambuf_iterator<char>()));
-    // vector<PatchInfo> patchData;
-
-    // while (patch) {
-    //     PatchInfo patchBuffer;
-    //     patch.read(reinterpret_cast<char*>(&patchBuffer.key), sizeof(uint8_t));
-    //     patch.read(reinterpret_cast<char*>(&patchBuffer.mem), sizeof(int));
-
-    //     if (patchBuffer.key == 0) {
-    //         int dataSize;
-    //         patch.read(reinterpret_cast<char*>(&dataSize), sizeof(int));
-    //         patchBuffer.data.resize(dataSize);
-    //         patch.read(patchBuffer.data.data(), dataSize);
-    //     }
-
-    //     patchData.push_back(patchBuffer);
-    // }
 
     while (patch) {
         PatchInfo patchBuffer;
@@ -142,16 +78,6 @@ void ApplyPatch(const string& ver1Path, const string& patchPath, const string& p
             patched.write(ver1Data.data() + patchBuffer.mem, ver1Data.size() + patchBuffer.mem);
         }
     }
-
-    // for (const auto& patchBuffer : patchData) {
-    //     if (patchBuffer.key == 0) {
-    //         patched.write(patchBuffer.data.data(), patchBuffer.data.size());
-    //     }
-
-    //     else if (patchBuffer.key == 1) {
-    //         patched.write(ver1Data.data() + patchBuffer.mem, ver1Data.size() - patchBuffer.mem);
-    //     }
-    // }
 
     cout << "Патч успешно применен" << endl;
 }
