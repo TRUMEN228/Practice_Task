@@ -5,9 +5,6 @@
 
 using namespace std;
 
-const int CHUNK = 100;
-int BUF_SIZE = CHUNK;
-
 struct PatchModel {
     uint8_t key;
     int mem = 0;
@@ -19,11 +16,13 @@ void CreatePatch(const string& ver1Path, const string& ver2Path, const string& p
     ifstream ver2File(ver2Path, ios::binary);
     ofstream patchFile(patchPath, ios::binary);
 
+    const int CHUNK = 100;
+    int BUF_SIZE = CHUNK;
+
     int ver1Size = (int)ver1File.seekg(0, ios::end).tellg();
     int ver2Size = (int)ver2File.seekg(0, ios::end).tellg();
 
     int ver1Lim = ver1Size - CHUNK;
-    // int ver2Lim = ver2Size - CHUNK;
     
     vector<char> ver1Buf(CHUNK);
     vector<char> ver2Buf(CHUNK);
@@ -125,7 +124,7 @@ void ApplyPatch (const string& ver1Path, const string& patchPath, const string& 
     ifstream patchFile(patchPath, ios::binary);
     ofstream patchedFile(patchedPath, ios::binary);
 
-    vector<char> patchBuf(CHUNK);
+    vector<char> patchBuf;
     vector<char> patchData;
 
     int patchSize = (int)patchFile.seekg(0, ios::end).tellg() - 5;
@@ -148,14 +147,12 @@ void ApplyPatch (const string& ver1Path, const string& patchPath, const string& 
             patchBuf = vector<char>(buf_size);
             ver1File.read(patchBuf.data(), buf_size);
             patchShift += 4;
-            // cout << "From ver1: " << patchInfo.mem << "byte || " << patchBuf.data() << endl;
         }
 
         else if (patchInfo.key == 0) {
-            patchBuf.resize(patchInfo.mem);
+            patchBuf = vector<char>(patchInfo.mem);
             patchFile.read(patchBuf.data(), patchInfo.mem);
             patchShift += patchInfo.mem;
-            // cout << "From patch: " << patchInfo.mem << "byte || " << patchBuf.data() << endl;
         }
 
         patchData.insert(patchData.end(), patchBuf.begin(), patchBuf.end());
