@@ -11,8 +11,6 @@ struct PatchModel {
     uint8_t key;
     int mem = 0;
     vector<char> data;
-
-    PatchModel(uint8_t keyVal, int memVal, vector<char> dataVal) : key(keyVal), mem(memVal), data(dataVal) {}
 };
 
 void CreatePatch(const string& ver1Path, const string& ver2Path, const string& patchPath) {
@@ -72,6 +70,8 @@ void CreatePatch(const string& ver1Path, const string& ver2Path, const string& p
             }
         }
 
+        PatchModel patchBuf;
+
         if (!match) {
             ver2File.seekg(ver2Shift, ios::beg);
             ver2File.read(ver2Mismatch.data(), 1);
@@ -81,13 +81,16 @@ void CreatePatch(const string& ver1Path, const string& ver2Path, const string& p
 
         else if (match) {
             if (!data.empty()) {
-                PatchModel patchBuf(0, data.size(), data);
-                
+                patchBuf.key = 0;
+                patchBuf.mem = data.size();
+                patchBuf.data = data;
                 patchData.push_back(patchBuf);
                 data.clear();
             }
 
-            PatchModel patchBuf(1, ver1Shift, {});
+            patchBuf.key = 1;
+            patchBuf.mem = ver1Shift;
+            patchBuf.data = {};
             patchData.push_back(patchBuf);
             ver2Shift += CHUNK;
         }
@@ -111,20 +114,41 @@ void ApplyPatch (const string& ver1Path, const string& patchPath, const string& 
     ifstream patchFile(patchPath, ios::binary);
     ofstream patchedFile(patchedPath, ios::binary);
 
-    // vector<char> patchBuf(1);
+    vector<char> patchBuf(CHUNK);
     vector<char> patchData;
+
+    int patchSize = (int)patchFile.seekg(0, ios::end).tellg() - 5;
 
     int patchShift = 0;
     patchFile.seekg(0, ios::beg);
 
-    // while (!patchFile.eof()) {
-    //     PatchModel patchInfo();
-    //     patchFile.read(patchInfo().key, 1);
+    while (patchShift <= patchSize) {
+        PatchModel patchInfo;
 
-    //     if (patchBuf[0] == 1) {
-            
-    //     }
-    // }
+        patchFile.seekg(patchShift, ios::beg);
+        patchFile.read(reinterpret_cast<char*>(&patchInfo.key), 1);
+        patchFile.read(reinterpret_cast<char*>(&patchInfo.mem), 4);
+        patchShift += 5;
+
+        if (patchInfo.key == 1) {
+            ver1File.seekg(patchInfo.mem, ios::beg);
+            cout << ver1File.tellg() << endl;
+            ver1File.read(patchBuf.data(), CHUNK);
+        }
+
+        else if (patchInfo.key == 0) {
+            patchFile.read(patchBuf.data(), patchInfo.mem);
+            patchShift += patchInfo.mem;
+        }
+
+        patchData.insert(patchData.end(), patchBuf.begin(), patchBuf.end());
+    }
+
+    patchedFile.write(patchData.data(), patchData.size());
+    
+    ver1File.close();
+    patchFile.close();
+    patchedFile.close();
 }
 
 int main() {
@@ -134,6 +158,7 @@ int main() {
     string patchedPath = "test_files/Dir2/patched.txt";
 
     CreatePatch(ver1Path, ver2Path, patchPath);
+    ApplyPatch(ver1Path, patchPath, patchedPath);
 
     return 0;
 }
