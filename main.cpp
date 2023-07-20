@@ -1,206 +1,163 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
-#include <random>
+#include <stdint.h>
 
 using namespace std;
 
-// Функция для создания бинарного патча на основе разницы между версиями ver1 и ver2
-vector<char> CreateBinaryPatch(const string& ver1Path, const string& ver2Path)
-{
+const int CHUNK = 100;
+
+struct PatchModel {
+    uint8_t key;
+    int mem = 0;
+    vector<char> data;
+};
+
+void CreatePatch(const string& ver1Path, const string& ver2Path, const string& patchPath) {
     ifstream ver1File(ver1Path, ios::binary);
     ifstream ver2File(ver2Path, ios::binary);
+    ofstream patchFile(patchPath, ios::binary);
 
-    if (!ver1File || !ver2File)
-    {
-        cerr << "Не удалось открыть файлы" << endl;
-        return {};
+    int ver1Lim = (int)ver1File.seekg(0, ios::end).tellg() - CHUNK;
+    int ver2Lim = (int)ver2File.seekg(0, ios::end).tellg() - CHUNK;
+
+    vector<char> ver2Buf(CHUNK);
+
+    vector<char> ver2Mismatch(1);
+
+    int ver1Shift = 0;
+    int ver2Shift = 0;
+
+    vector<PatchModel> patchData;
+    vector<char> ver1Buf(CHUNK);
+
+    vector<char> data;
+
+    bool match = false;
+
+    while (ver2Shift <= ver2Lim) {
+        ver2File.seekg(ver2Shift, ios::beg);
+        ver2File.read(ver2Buf.data(), CHUNK);
+
+        streamsize bytesRead2 = ver2File.gcount();
+        if (bytesRead2 == 0) {
+            cout << "Nothing to read in ver2" << endl;
+            break;
+        }
+
+        ver1Shift = 0;
+
+        while (ver1Shift <= ver1Lim) {
+            ver1File.seekg(ver1Shift, ios::beg);
+            ver1File.read(ver1Buf.data(), CHUNK);
+
+            streamsize bytesRead1 = ver1File.gcount();
+            if (bytesRead1 == 0) {
+                cout << "Nothing to read in ver1" << endl;
+                break;
+            }
+
+            if (ver1Buf != ver2Buf) {
+                match = false;
+                ver1Shift++;
+                continue;
+            }
+
+            else if (ver1Buf == ver2Buf) {
+                match = true;
+                break;
+            }
+        }
+
+        PatchModel patchBuf;
+
+        if (!match) {
+            ver2File.seekg(ver2Shift, ios::beg);
+            ver2File.read(ver2Mismatch.data(), 1);
+            data.insert(data.end(), ver2Mismatch.begin(), ver2Mismatch.end());
+            ver2Shift++;
+        }
+
+        else if (match) {
+            if (!data.empty()) {
+                patchBuf.key = 0;
+                patchBuf.mem = data.size();
+                patchBuf.data = data;
+                patchData.push_back(patchBuf);
+                data.clear();
+            }
+
+            patchBuf.key = 1;
+            patchBuf.mem = ver1Shift;
+            patchBuf.data = {};
+            patchData.push_back(patchBuf);
+            ver2Shift += CHUNK;
+        }
     }
 
-    // Считываем данные из файлов ver1 и ver2
-    vector<char> ver1Data(istreambuf_iterator<char>(ver1File), {});
-    vector<char> ver2Data(istreambuf_iterator<char>(ver2File), {});
-
-    // Создаем патч на основе разницы между ver2 и ver1
-    vector<char> patchData;
-    for (size_t i = 0; i < ver2Data.size(); ++i)
-    {
-        if (i < ver1Data.size())
-        {
-            char diff = ver2Data[i] - ver1Data[i];
-            patchData.push_back(diff);
-        }
-        else
-        {
-            patchData.push_back(ver2Data[i]);
-        }
+    for (const PatchModel& data : patchData) {
+        patchFile.write(reinterpret_cast<const char*>(&data.key), sizeof(uint8_t));
+        patchFile.write(reinterpret_cast<const char*>(&data.mem), sizeof(int));
+        patchFile.write(data.data.data(), data.data.size());
     }
 
-    return patchData;
+    ver1File.close();
+    ver2File.close();
+    patchFile.close();
+
+    return;
 }
 
-// Функция для применения бинарного патча к версии ver1, чтобы получить версию ver2
-vector<char> ApplyBinaryPatch(const string& ver1Path, const vector<char>& patchData)
-{
+void ApplyPatch (const string& ver1Path, const string& patchPath, const string& patchedPath) {
     ifstream ver1File(ver1Path, ios::binary);
+    ifstream patchFile(patchPath, ios::binary);
+    ofstream patchedFile(patchedPath, ios::binary);
 
-    if (!ver1File)
-    {
-        cerr << "Не удалось открыть файлы" << endl;
-        return {};
-    }
+    vector<char> patchBuf(CHUNK);
+    vector<char> patchData;
 
-    // Считываем данные из файла ver1
-    vector<char> ver1Data(istreambuf_iterator<char>(ver1File), {});
+    int patchSize = (int)patchFile.seekg(0, ios::end).tellg() - 5;
 
-    // Применяем патч к версии ver1, чтобы получить версию ver2
-    vector<char> ver2Data;
-    for (size_t i = 0; i < ver1Data.size(); ++i)
-    {
-        if (i < patchData.size())
-        {
-            char updatedByte = ver1Data[i] + patchData[i];
-            ver2Data.push_back(updatedByte);
-        }
-        else
-        {
-            ver2Data.push_back(ver1Data[i]);
-        }
-    }
+    int patchShift = 0;
+    patchFile.seekg(0, ios::beg);
 
-    return ver2Data;
-}
+    while (patchShift <= patchSize) {
+        PatchModel patchInfo;
 
-// Функция для создания бинарного файла с случайными данными
-void CreateBinaryFile(const string& filePath, size_t fileSize)
-{
-    ofstream file(filePath, ios::binary);
+        patchFile.seekg(patchShift, ios::beg);
+        patchFile.read(reinterpret_cast<char*>(&patchInfo.key), 1);
+        patchFile.read(reinterpret_cast<char*>(&patchInfo.mem), 4);
+        patchShift += 5;
 
-    if (!file)
-    {
-        cerr << "Не удалось создать бинарный файл: " << filePath << endl;
-        return;
-    }
-
-    random_device rd;
-    mt19937 generator(rd());
-    uniform_int_distribution<int> distribution(0, 255);
-
-    vector<char> data(fileSize);
-    for (size_t i = 0; i < fileSize; ++i)
-    {
-        data[i] = static_cast<char>(distribution(generator));
-    }
-
-    file.write(data.data(), fileSize);
-
-    cout << "Бинарный файл создан успешно: " << filePath << endl;
-}
-
-//  Функция для обновления размера пропатченного файла на основе размера модифицированного файла
-void UpdatePatchedFileSize(const string& patchedFilePath, size_t newSize, const string& originalFilePath)
-{
-    fstream patchedFile(patchedFilePath, ios::in | ios::out | ios::binary);
-    ifstream originalFile(originalFilePath, ios::binary);
-
-    if (!patchedFile || !originalFile)
-    {
-        cerr << "Не удалось открыть файлы" << endl;
-        return;
-    }
-
-    patchedFile.seekp(0, ios::end);
-    size_t currentSize = patchedFile.tellp();
-
-    if (currentSize < newSize)
-    {
-        // Считываем оригинальные данные, которые не попали в патч
-        vector<char> remainingData(newSize - currentSize);
-        originalFile.seekg(currentSize);
-        originalFile.read(remainingData.data(), newSize - currentSize);
-
-        // Увеличиваем размер файла путем добавления оставшихся данных в конец
-        patchedFile.write(remainingData.data(), remainingData.size());
-    }
-    else if (currentSize > newSize)
-    {
-        // Обрезаем файл до нужного размера
-        patchedFile.close();
-
-        ofstream truncateFile(patchedFilePath, ios::binary | ios::trunc);
-        if (!truncateFile)
-        {
-            cerr << "Не удалось обрезать файл" << endl;
-            return;
+        if (patchInfo.key == 1) {
+            ver1File.seekg(patchInfo.mem, ios::beg);
+            cout << ver1File.tellg() << endl;
+            ver1File.read(patchBuf.data(), CHUNK);
         }
 
-        truncateFile.write("", newSize);
-        truncateFile.close();
+        else if (patchInfo.key == 0) {
+            patchFile.read(patchBuf.data(), patchInfo.mem);
+            patchShift += patchInfo.mem;
+        }
+
+        patchData.insert(patchData.end(), patchBuf.begin(), patchBuf.end());
     }
 
-    cout << "Размер файла успешно обновлен" << endl;
+    patchedFile.write(patchData.data(), patchData.size());
+    
+    ver1File.close();
+    patchFile.close();
+    patchedFile.close();
 }
 
-// Функция для получения размера файла
-size_t GetFileSize(const string& filePath)
-{
-    ifstream file(filePath, ios::binary | ios::ate);
-    if (!file)
-    {
-        cerr << "Не удалось открыть файл" << endl;
-        return 0;
-    }
-
-    size_t fileSize = static_cast<size_t>(file.tellg());
-    file.close();
-
-    return fileSize;
-}
-
-int main()
-{
+int main() {
     string ver1Path = "test_files/Dir1/ver1.txt";
     string ver2Path = "test_files/Dir1/ver2.txt";
-    string patchPath = "test_files/patch.patch";
+    string patchPath = "test_files/patch.bin";
+    string patchedPath = "test_files/Dir2/patched.txt";
 
-    // CreateBinaryFile(ver1Path, 256);
-    // CreateBinaryFile(ver2Path, 512);
-
-    // Создание патча
-    vector<char> patchData = CreateBinaryPatch(ver1Path, ver2Path);
-
-    // Сохранение патча в файл
-    ofstream patchFile(patchPath, ios::binary);
-    if (!patchFile)
-    {
-        cerr << "Не удалось создать патч-файл" << endl;
-        return 1;
-    }
-
-    copy(patchData.begin(), patchData.end(), ostreambuf_iterator<char>(patchFile));
-
-    cout << "Патч создан успешно" << endl;
-
-    // Применение патча к версии ver1, чтобы получить версию ver2
-    string patchedFilePath = "test_files/Dir2/patched.bin";
-
-    vector<char> patchedData = ApplyBinaryPatch(ver1Path, patchData);
-
-    // Сохранение версии ver2 в файл
-    ofstream patchedFile(patchedFilePath, ios::binary);
-    if (!patchedFile)
-    {
-        cerr << "Не удалось создать пропатченый файл" << endl;
-        return 1;
-    }
-    
-    size_t newSize = GetFileSize(ver2Path);
-
-    UpdatePatchedFileSize(patchedFilePath, newSize, ver2Path);
-
-    patchedFile.write(patchedData.data(), patchedData.size());
-
-    cout << "Патч успешно применен" << endl;
+    CreatePatch(ver1Path, ver2Path, patchPath);
+    ApplyPatch(ver1Path, patchPath, patchedPath);
 
     return 0;
 }
