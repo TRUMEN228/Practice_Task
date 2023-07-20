@@ -9,7 +9,7 @@ const int CHUNK = 100;
 
 struct PatchModel {
     uint8_t key;
-    int mem;
+    int mem = 0;
     vector<char> data;
 };
 
@@ -18,7 +18,9 @@ void CreatePatch(const string& ver1Path, const string& ver2Path, const string& p
     ifstream ver2File(ver2Path, ios::binary);
     ofstream patchFile(patchPath, ios::binary);
 
-    vector<char> ver1Buf(CHUNK);
+    int ver1Lim = (int)ver1File.seekg(0, ios::end).tellg() - CHUNK;
+    int ver2Lim = (int)ver2File.seekg(0, ios::end).tellg() - CHUNK;
+
     vector<char> ver2Buf(CHUNK);
 
     vector<char> ver2Mismatch(sizeof(uint8_t));
@@ -27,83 +29,90 @@ void CreatePatch(const string& ver1Path, const string& ver2Path, const string& p
     int ver2Shift = 0;
 
     vector<PatchModel> patchData;
+    vector<char> ver1Buf(CHUNK);
 
-    PatchModel patchBuf;
-    patchBuf.mem = 0;
+    vector<char> data;
 
     bool match = false;
 
-    ver1File.seekg(0, ios::beg);
     ver2File.seekg(0, ios::beg);
 
-    while (!ver2File.eof()) {
+    while (ver2Shift <= ver2Lim) {
+        ver2File.seekg(ver2Shift, ios::beg);
         ver2File.read(ver2Buf.data(), CHUNK);
-        cout << "This is " << ver2Shift << "'th byte in ver2" << endl;
-        streamsize bytesRead2 = ver2File.gcount();
 
+        streamsize bytesRead2 = ver2File.gcount();
         if (bytesRead2 == 0) {
             cout << "Nothing to read in ver2" << endl;
             break;
         }
 
-        while (!ver1File.eof()) {
-            ver1File.read(ver1Buf.data(), CHUNK);
-            cout << "This is " << ver1Shift << "'th byte in ver1" << endl;
-            streamsize bytesRead1 = ver1File.gcount();
+        ver1Shift = 0;
 
+        while (ver1Shift <= ver1Lim) {
+            ver1File.seekg(ver1Shift, ios::beg);
+            ver1File.read(ver1Buf.data(), CHUNK);
+
+            streamsize bytesRead1 = ver1File.gcount();
             if (bytesRead1 == 0) {
                 cout << "Nothing to read in ver1" << endl;
                 break;
             }
 
-            if (ver1Buf.data() != ver2Buf.data()) {
+            else if (ver1Buf != ver2Buf) {
                 match = false;
                 ver1Shift++;
                 ver1File.seekg(ver1Shift, ios::beg);
+                continue;
             }
 
-            else if (ver1Buf.data() == ver2Buf.data()) {
+            else if (ver1Buf == ver2Buf) {
                 match = true;
                 cout << "Match found in " << ver1Shift << " byte in ver1" << endl;
                 break;
             }
         }
 
+        PatchModel patchBuf;
+
         if (!match) {
-            ver2File.seekg(patchBuf.mem, ios::beg);
             ver2File.read(ver2Mismatch.data(), sizeof(uint8_t));
-            patchBuf.data.insert(patchBuf.data.end(), ver2Mismatch.begin(), ver2Mismatch.end());
-            patchBuf.key = 0;
-            patchBuf.mem++;
-            
-            cout << "Match didn't find in " << ver2Shift << " byte in ver2" << endl;
+            data.insert(data.end(), ver2Mismatch.begin(), ver2Mismatch.end());
             ver2Shift++;
+
+            cout << "Match didn't find in " << ver2Shift << " byte in ver2" << endl;
         }
 
         else if (match) {
-            if (!patchBuf.data.empty()) {
+            if (!data.empty()) {
+                patchBuf.key = 0;
+                patchBuf.mem = data.size();
+                patchBuf.data = data;
                 patchData.push_back(patchBuf);
-                patchBuf.data.clear();
+                data = {};
             }
 
             cout << "Match found in " << ver2Shift << " byte in ver2" << endl;
 
             patchBuf.key = 1;
             patchBuf.mem = ver1Shift;
+            patchBuf.data = {};
             patchData.push_back(patchBuf);
             ver2Shift += CHUNK;
         }
 
-        ver1Shift = 0;
-        ver2File.seekg(ver2Shift, ios::beg);
-        ver1File.seekg(1, ios::beg);
+        // cin.ignore();
     }
 
-    patchFile.write(reinterpret_cast<const char*>(&patchData), sizeof(patchData));
+    patchFile.write(reinterpret_cast<const char*>(&patchData), patchData.size() * sizeof(PatchModel));
 
     ver1File.close();
     ver2File.close();
     patchFile.close();
+}
+
+void ApplyPatch (const string& ver1Path, const string& patchPath, const string& patchedPath) {
+
 }
 
 int main() {
