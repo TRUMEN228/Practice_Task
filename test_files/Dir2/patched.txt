@@ -1,8 +1,7 @@
 In enim justo, rhoncus ut, imperdiet a, venenatis vitae, justo.
 Nullam dictum felis eu pede mollis pretium.
 Integer tincidunt.
-erdiet a, venenatis vitae, justo.
-Nullam dictum felis eu pede mollis Lorem ipsum dolor sit amet, consectetuer adipiscing elit.
+Lorem ipsum dolor sit amet, consectetuer adipiscing elit.
 Aenean commodo ligula eget dolor.
 Aenean massa.
 Cum sociis natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus.
@@ -25,9 +24,7 @@ Curabitur ullamcorper ultricies nisi.
 Nam eget dui.
 Etiam rhoncus.
 Vivamus elementum semper nisi.
-Aenean vulputate eleifend tellnisi.
-Nam eget dui.
-Etiam rhonus.
+Aenean vulputate eleifend tellus.
 Maecenas tempus, tellus eget condimentum rhoncus, sem quam semper libero, sit amet adipiscing sem neque sed ipsum.
 Nam quam nunc, blandit vel, luctus pulvinar, hendrerit id, lorem.
 Maecenas nec odio et ante tincidunt tempus.

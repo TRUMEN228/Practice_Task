@@ -6,6 +6,7 @@
 using namespace std;
 
 const int CHUNK = 100;
+// int CHUNK_RESIZED = 100;
 
 struct PatchModel {
     uint8_t key;
@@ -18,9 +19,13 @@ void CreatePatch(const string& ver1Path, const string& ver2Path, const string& p
     ifstream ver2File(ver2Path, ios::binary);
     ofstream patchFile(patchPath, ios::binary);
 
-    int ver1Lim = (int)ver1File.seekg(0, ios::end).tellg() - CHUNK;
-    int ver2Lim = (int)ver2File.seekg(0, ios::end).tellg() - CHUNK;
+    int ver1Size = (int)ver1File.seekg(0, ios::end).tellg();
+    int ver2Size = (int)ver2File.seekg(0, ios::end).tellg();
 
+    int ver1Lim = ver1Size - CHUNK;
+    // int ver2Lim = ver2Size - CHUNK;
+    
+    vector<char> ver1Buf(CHUNK);
     vector<char> ver2Buf(CHUNK);
 
     vector<char> ver2Mismatch(1);
@@ -29,16 +34,15 @@ void CreatePatch(const string& ver1Path, const string& ver2Path, const string& p
     int ver2Shift = 0;
 
     vector<PatchModel> patchData;
-    vector<char> ver1Buf(CHUNK);
-
+    
     vector<char> data;
 
     bool match = false;
 
-    while (ver2Shift <= ver2Lim) {
+    while (ver2Shift <= ver2Size) {
         ver2File.seekg(ver2Shift, ios::beg);
-        ver2File.read(ver2Buf.data(), CHUNK);
-
+        ver2File.read(ver2Buf.data(), ver2Buf.size());
+        
         streamsize bytesRead2 = ver2File.gcount();
         if (bytesRead2 == 0) {
             cout << "Nothing to read in ver2" << endl;
@@ -49,7 +53,7 @@ void CreatePatch(const string& ver1Path, const string& ver2Path, const string& p
 
         while (ver1Shift <= ver1Lim) {
             ver1File.seekg(ver1Shift, ios::beg);
-            ver1File.read(ver1Buf.data(), CHUNK);
+            ver1File.read(ver1Buf.data(), ver1Buf.size());
 
             streamsize bytesRead1 = ver1File.gcount();
             if (bytesRead1 == 0) {
@@ -91,7 +95,13 @@ void CreatePatch(const string& ver1Path, const string& ver2Path, const string& p
             patchBuf.mem = ver1Shift;
             patchBuf.data = {};
             patchData.push_back(patchBuf);
+
             ver2Shift += CHUNK;
+
+            // if (ver2Shift + CHUNK > ver2Size - CHUNK) {
+            //     ver1Buf.resize(ver2Size - ver2Shift);
+            //     ver2Buf.resize(ver2Size - ver2Shift);
+            // }
         }
     }
 
@@ -131,16 +141,20 @@ void ApplyPatch (const string& ver1Path, const string& patchPath, const string& 
 
         if (patchInfo.key == 1) {
             ver1File.seekg(patchInfo.mem, ios::beg);
-            cout << ver1File.tellg() << endl;
+            patchBuf.resize(CHUNK);
             ver1File.read(patchBuf.data(), CHUNK);
+            cout << "From ver1: " << patchInfo.mem << "byte || " << patchBuf.data() << endl;
         }
 
         else if (patchInfo.key == 0) {
+            patchBuf.resize(patchInfo.mem);
             patchFile.read(patchBuf.data(), patchInfo.mem);
             patchShift += patchInfo.mem;
+            cout << "From patch: " << patchInfo.mem << "byte || " << patchBuf.data() << endl;
         }
 
         patchData.insert(patchData.end(), patchBuf.begin(), patchBuf.end());
+        // patchBuf.clear();
     }
 
     patchedFile.write(patchData.data(), patchData.size());
