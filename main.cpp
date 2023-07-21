@@ -5,6 +5,8 @@
 
 using namespace std;
 
+const int CHUNK = 100;
+
 struct PatchModel {
     uint8_t key;
     int mem = 0;
@@ -16,8 +18,7 @@ void CreatePatch(const string& ver1Path, const string& ver2Path, const string& p
     ifstream ver2File(ver2Path, ios::binary);
     ofstream patchFile(patchPath, ios::binary);
 
-    const int CHUNK = 100;
-    int BUF_SIZE = CHUNK;
+    int buf_size = CHUNK;
 
     int ver1Size = (int)ver1File.seekg(0, ios::end).tellg();
     int ver2Size = (int)ver2File.seekg(0, ios::end).tellg();
@@ -37,10 +38,11 @@ void CreatePatch(const string& ver1Path, const string& ver2Path, const string& p
     vector<char> data;
 
     bool match = false;
+    bool last = false;
 
     while (ver2Shift <= ver2Size) {
         ver2File.seekg(ver2Shift, ios::beg);
-        ver2File.read(ver2Buf.data(), BUF_SIZE);
+        ver2File.read(ver2Buf.data(), buf_size);
         
         streamsize bytesRead2 = ver2File.gcount();
         if (bytesRead2 == 0) {
@@ -52,7 +54,7 @@ void CreatePatch(const string& ver1Path, const string& ver2Path, const string& p
 
         while (ver1Shift <= ver1Lim) {
             ver1File.seekg(ver1Shift, ios::beg);
-            ver1File.read(ver1Buf.data(), BUF_SIZE);
+            ver1File.read(ver1Buf.data(), buf_size);
 
             streamsize bytesRead1 = ver1File.gcount();
             if (bytesRead1 == 0) {
@@ -74,14 +76,14 @@ void CreatePatch(const string& ver1Path, const string& ver2Path, const string& p
 
         PatchModel patchBuf;
 
-        if (!match) {
+        if (!match && !last) {
             ver2File.seekg(ver2Shift, ios::beg);
             ver2File.read(ver2Mismatch.data(), 1);
             data.insert(data.end(), ver2Mismatch.begin(), ver2Mismatch.end());
             ver2Shift++;
         }
 
-        else if (match) {
+        else if (match && !last) {
             if (!data.empty()) {
                 patchBuf.key = 0;
                 patchBuf.mem = data.size();
@@ -92,17 +94,28 @@ void CreatePatch(const string& ver1Path, const string& ver2Path, const string& p
 
             patchBuf.key = 1;
             patchBuf.mem = ver1Shift;
-            patchBuf.data = vector<char>(sizeof(int));
-            memcpy(patchBuf.data.data(), &BUF_SIZE, sizeof(int));
+            patchBuf.data = {};
+            patchBuf.data.resize(0);
             patchData.push_back(patchBuf);
 
             ver2Shift += CHUNK;
 
             if (ver2Size - ver2Shift < CHUNK && ver2Size - ver2Shift > 0) {
-                BUF_SIZE = ver2Size - ver2Shift;
-                ver1Buf = vector<char>(BUF_SIZE);
-                ver2Buf = vector<char>(BUF_SIZE);
+                buf_size = ver2Size - ver2Shift;
+                last = true;
             }
+        }
+
+        if (last) {
+            ver2File.seekg(ver2Shift, ios::beg);
+            ver2Buf = vector<char>(buf_size);
+            ver2File.read(ver2Buf.data(), buf_size);
+            patchBuf.key = 0;
+            patchBuf.mem = buf_size;
+            patchBuf.data = ver2Buf;
+            patchData.push_back(patchBuf);
+            ver2Shift += buf_size;
+            break;
         }
     }
 
@@ -128,7 +141,6 @@ void ApplyPatch (const string& ver1Path, const string& patchPath, const string& 
     vector<char> patchData;
 
     int patchSize = (int)patchFile.seekg(0, ios::end).tellg() - 5;
-    int buf_size;
 
     int patchShift = 0;
     patchFile.seekg(0, ios::beg);
@@ -143,10 +155,8 @@ void ApplyPatch (const string& ver1Path, const string& patchPath, const string& 
 
         if (patchInfo.key == 1) {
             ver1File.seekg(patchInfo.mem, ios::beg);
-            patchFile.read(reinterpret_cast<char*>(&buf_size), 4);
-            patchBuf = vector<char>(buf_size);
-            ver1File.read(patchBuf.data(), buf_size);
-            patchShift += 4;
+            patchBuf = vector<char>(CHUNK);
+            ver1File.read(patchBuf.data(), CHUNK);
         }
 
         else if (patchInfo.key == 0) {
@@ -163,6 +173,8 @@ void ApplyPatch (const string& ver1Path, const string& patchPath, const string& 
     ver1File.close();
     patchFile.close();
     patchedFile.close();
+
+    return;
 }
 
 int main() {
