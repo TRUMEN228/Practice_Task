@@ -44,23 +44,11 @@ void CreatePatch(const string& ver1Path, const string& ver2Path, const string& p
         ver2File.seekg(ver2Shift, ios::beg);
         ver2File.read(ver2Buf.data(), buf_size);
         
-        streamsize bytesRead2 = ver2File.gcount();
-        if (bytesRead2 == 0) {
-            cout << "Nothing to read in ver2" << endl;
-            break;
-        }
-
         ver1Shift = 0;
 
         while (ver1Shift <= ver1Lim) {
             ver1File.seekg(ver1Shift, ios::beg);
             ver1File.read(ver1Buf.data(), buf_size);
-
-            streamsize bytesRead1 = ver1File.gcount();
-            if (bytesRead1 == 0) {
-                cout << "Nothing to read in ver1" << endl;
-                break;
-            }
 
             if (ver1Buf != ver2Buf) {
                 match = false;
